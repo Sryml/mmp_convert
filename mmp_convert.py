@@ -19,12 +19,17 @@ from queue import Queue
 from PIL import Image
 
 # -------------------
-CPU_COUNT = os.cpu_count()
+CPU_COUNT = os.cpu_count()-1
 
 # -------------------
 def image_convert(img,mode):
     if img.mode!=mode:
-        return mode=='P' and img.convert(mode, palette=Image.ADAPTIVE, colors=256) or img.convert(mode)
+        if mode=='P':
+            if img.mode == 'RGBA':
+                img = img.convert('RGB')
+            return img.convert(mode, palette=Image.ADAPTIVE, colors=256)
+        else:
+            return img.convert(mode)
     return img
 
 
