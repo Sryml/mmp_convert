@@ -1,7 +1,7 @@
 # BoD - mmp files convert(Python program)&emsp;&emsp;[中文文档](https://github.com/Sryml/mmp_convert/blob/master/readme_cn.md#readme)
 
 <div align="center">
-  <img alt="GitHub tag (latest SemVer)" src="https://img.shields.io/github/tag/sryml/mmp_convert.svg?color=blue&label=version&style=plastic">
+  <img alt="GitHub release" src="https://img.shields.io/github/release/sryml/mmp_convert.svg?style=plastic">
   
   <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/sryml/mmp_convert.svg?style=plastic">
 
