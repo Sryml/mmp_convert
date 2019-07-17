@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[主页](https://github.com/Sryml/mmp_convert)
 
 <div align="center">
   <img alt="GitHub tag (latest SemVer)" src="https://img.shields.io/github/tag/sryml/mmp_convert.svg?color=blue&label=version&style=plastic">
@@ -12,7 +12,7 @@
 
 <br>
 
-- July 2019 by Sryml
+July 2019 by Sryml
 
 ## 为什么写这个程序？
 当前网络上3个mmp文件处理程序的功能：
@@ -50,11 +50,15 @@
     `--bpp`: 8/24/32，默认为原mmp位数
     ![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
     
+    <br>
+    
   - packing  
     打包/添加图片,2个可选参数  
     `--bpp`: 8/24/32，默认为原图片位数  
     `-y`: 覆盖，没有-y则不覆盖
     ![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
+    
+    <br>
     
   - tobpp  
     转换到其它位数，2个可选参数  
@@ -62,9 +66,13 @@
     `-y`: 覆盖，没有-y则不覆盖
     ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
     
+    <br>
+    
   - todat  
     生成dat名称列表
     ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
+    
+    <br>
     
 - 支持多进程快速处理文件
 - 暂时没有删除功能，请重新打包即可

@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[中文文档](https://github.com/Sryml/mmp_convert/blob/master/readme_cn.md#readme)
 
 <div align="center">
   <img alt="GitHub tag (latest SemVer)" src="https://img.shields.io/github/tag/sryml/mmp_convert.svg?color=blue&label=version&style=plastic">
@@ -12,7 +12,7 @@
 
 <br>
 
-- July 2019 by Sryml
+July 2019 by Sryml
 
 ## Why write this program?
 There are 3 mmp programs on the current network:  
@@ -51,11 +51,15 @@ You may have guessed the function of `mmp_convert`:sunglasses:
     `--bpp`: 8/24/32, default bpp from the original mmp
     ![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
     
+    <br>
+    
   - packing  
     Pack/add images, 2 optional parameters:  
     `--bpp`: 8/24/32, default bpp from the original image.  
     `-y`: overwrite, no -y does not overwrite.
     ![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
+    
+    <br>
     
   - tobpp  
     Convert to other bpp, 2 optional parameters:  
@@ -63,9 +67,13 @@ You may have guessed the function of `mmp_convert`:sunglasses:
     `-y`: overwrite, no -y does not overwrite.
     ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
     
+    <br>
+    
   - todat  
     Generate a list of names to dat.
     ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
+    
+    <br>
     
 - Support multi-process to quickly process files.
 - There is no delete function at this time, please repack it.
