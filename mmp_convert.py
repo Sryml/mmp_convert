@@ -4,25 +4,40 @@
 
 import os
 import io
-import binascii
 import struct
-import argparse
 import threading
-import time
 
+from argparse import ArgumentParser
+from binascii import crc32
+from time import sleep
+from math import ceil
 from timeit import timeit
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from multiprocessing import Manager
 from queue import Queue
+from ctypes import windll
+from sys import stdout
 
 #
 from PIL import Image
 
 # -------------------
-CPU_COUNT = os.cpu_count()-1
+CPU_COUNT = max(os.cpu_count()-1, 1)
+TIMER = None
 
 # -------------------
-def image_convert(img,mode):
+class Unbuffered(object):
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
+stdout = Unbuffered(stdout)
+
+
+def image_convert(img, mode):
     if img.mode!=mode:
         if mode=='P':
             if img.mode == 'RGBA':
@@ -31,46 +46,96 @@ def image_convert(img,mode):
         else:
             return img.convert(mode)
     return img
+    
+def IMG_resize(img, maxsize):
+    im_size= img.size
+    im_size_max =  max(im_size[0], im_size[1])
+    if im_size_max > maxsize:
+        if im_size[0] == im_size[1]:
+            resize = [maxsize]*2
+        else:
+            scale = maxsize/im_size_max
+            idx = im_size.index(im_size_max)
+            resize = [maxsize, round(im_size[1-idx]*scale)]
+            if idx==1:
+                resize.reverse()
+        return img.resize(resize, Image.ANTIALIAS)
+    return img
 
 
-def progress_bar(self, maximum, q, fix_count=None, run=1):
+def progress_bar(maximum, q, fix_count=None, run=1):
+    global TIMER
     if fix_count and not fix_count.empty():
-        maximum -= fix_count.get()
+        num = fix_count.get()
+        maximum -= num
         if maximum <= 0:
+            print ('\r',' '*60, end='')
             return
     period = 1/40
     block  = 0.05 # 100%/20%
     current = q.qsize()
 
-    bar    = '\r %3d%% [%s%s]  %{}d/{}'.format(len(str(maximum)),maximum)
+    bar1   = '\r %3d%% ['
+    bar2   = '%s'
+    bar3   = '%s'
+    bar4   = ']  %{}d/{}'.format(len(str(maximum)),maximum)
     ratio  = min(current/maximum, 1.0)
     num_up = int(ratio/block)
     up     = '█' * num_up
-    down   = '□' * (20-num_up)
+    down   = '▓' * (20-num_up) #▓□
     r      = ratio * 100
-    print (bar % (r,up,down,current), end='')
-
+    #
+    cmd_font.SetColor(cmd_font.LightGreen)
+    stdout.write(bar1 % (r,))
+    stdout.write(bar2 % (up,))
+    
+    cmd_font.SetColor()
+    stdout.write(bar3 % (down,))
+    
+    cmd_font.SetColor(cmd_font.LightGreen)
+    stdout.write(bar4 % (current,))
+    #
     if not run:
+        if r < 100:
+            print ('\r',' '*60, end='')
+        else:
+            print ('\n')
         return
 
-    if not self.isrun:
-        progress_bar(self, maximum, q, fix_count, run=0)
+    if not TIMER.interval:
+        progress_bar(maximum, q, fix_count, run=0)
         return
-    timer = threading.Timer(period, progress_bar, (self, maximum, q, fix_count))
-    timer.start()
+    TIMER = threading.Timer(period, progress_bar, (maximum, q, fix_count))
+    TIMER.start()
+    
+def progress_bar2(str_, n=0):
+    global TIMER
+    if not TIMER.interval:
+        print (str_,'done.', end='')
+        return
+    period = 1/10
+    lst = ("\\", "|", "/", "-")
+    print ('{}{}'.format(str_, lst[n]), end='')
+    n = n-3 and n+1
+    TIMER = threading.Timer(period, progress_bar2, (str_, n))
+    TIMER.start()
         
         
 def read_file(file, seek, size):
     return [file.seek(seek)] and file.read(size)
 
 
+ERROR_NAME = 0
 def str_codec(str_, method='decode'):
+    global ERROR_NAME
     codecs = ['ISO-8859-1','utf-8']
     for codec in codecs:
         try: return eval('str_.{}(codec)'.format(method))
         except: pass
-    return 'ErrorName'
-
+    ERROR_NAME += 1
+    return 'ErrorName_{}'.format(ERROR_NAME)
+    
+   
 
     
 #################################################
@@ -89,55 +154,86 @@ class mmp_convert(object):
     valid_format    = ('.bmp','.png','.jpg','.jpeg','.webp')
     # -------------------
     def __init__(self):
-        self.isrun = 0
+        self.bpp     = None
+        self.maxsize = None
         self.nTextures = 0
-        self.bpp = None
         self.overwrite = False
         self.mmp_paths = []
+        self.img_paths = []
         self.dir_paths = []
 
 
     #######################
     # mmp unpacking.
     #######################
-    def process_unpacking(self, params):
+    def process_unpacking(self, params, FLAG='init'):
         cpu  = CPU_COUNT
-        if params[0] == 'main':
-            cmd = params[1]
+
+        if FLAG == 'init':
+            global TIMER
+            paths,cmd = params
+            str_ = '\rFiles pre-parsing...'
+            print (str_, end='')
+            if cmd:
+                TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+                TIMER.start()
+
+            self.mmp_paths = []
+            self.nTextures = 0
+            for p in paths:
+                if os.path.isdir(p):
+                    for root, dirs, files in os.walk(p):
+                        files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() == '.mmp']
+                        self.mmp_paths.extend(files)
+                elif os.path.splitext(p)[1].lower() == '.mmp':
+                    self.mmp_paths.append(p)
+
+            for file in self.mmp_paths:
+                with open(file,'rb') as f:
+                    self.nTextures += struct.unpack('<I', f.read(4))[0]
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+            print ('\n')
+                    
+            if not self.nTextures:
+                print ('No mmp file!')
+                return
+
+            #--------------------------------
             print ('mmp unpacking...\n')
-            self.isrun = 1
             # 多进程通信管理
             manager = Manager()
             q = manager.Queue()
             fix_count = manager.Queue()
             # 控制台模式下创建进度条
             if cmd:
-                timer = threading.Timer(0.1, progress_bar, (self, self.nTextures, q, fix_count))
-                timer.start()
+                TIMER = threading.Timer(0.1, progress_bar, (self.nTextures, q, fix_count))
+                TIMER.start()
 
             # 开启多进程任务分配
             pool = ProcessPoolExecutor(cpu)
             futures = []
             for task in self.mmp_paths:
-                future = pool.submit(self.process_unpacking,('Process',q,task,fix_count))
+                future = pool.submit(self.process_unpacking, (task,q,fix_count), FLAG='Process')
                 futures.append(future)
             pool.shutdown()
-                
-            self.isrun = 0
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
             qsize = q.qsize()
-            time.sleep(0.2)
 
             length = len(self.mmp_paths)
-            print ('\n\n%d mmp files unpacking done! Generate %d images.\n' % (length, qsize))
+            print ('\r%d mmp files unpacking done! Generate %d images.' % (length, qsize))
             for future in futures:
                 results = future.result()
                 if results:
                     for msg in results:
                         print (msg)
-        elif params[0] == 'Process':
-            q = params[1]
-            file = params[2]
-            fix_count = params[3]
+            print ('')
+        elif FLAG == 'Process':
+            file, q, fix_count = params
             error_msg = []
 
             mmp_file= open(file,'rb')
@@ -188,26 +284,23 @@ class mmp_convert(object):
                 future = pool.submit(
                     self.process_unpacking,
                     (
-                    'Thread',
+                    task,
                     q,
                     unpack_dir,
-                    task,
                     mmp_file,
                     lock
-                    )
+                    ),
+                    FLAG='Thread'
                 )
                 futures.append(future)
             pool.shutdown()
             mmp_file.close()
             return error_msg
-        elif params[0] == 'Thread':
+        elif FLAG == 'Thread':
             bpp = self.bpp
-            q = params[1]
-            unpack_dir = params[2]
-            name,im_type,width,height,data_seek = params[3]
-            mmp_file = params[4]
+            name,im_type,width,height,data_seek = params[0]
+            q, unpack_dir, mmp_file, lock = params[1:]
             
-            lock = params[5]
             lock.put(1)
             data = read_file(mmp_file, data_seek[0], data_seek[1])
             lock.get()
@@ -233,67 +326,75 @@ class mmp_convert(object):
         else:
             self.bpp = bpp
 
-        self.mmp_paths = []
-        self.nTextures = 0
-        for p in paths:
-            if os.path.isdir(p):
-                for root, dirs, files in os.walk(p):
-                    files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() == '.mmp']
-                    self.mmp_paths.extend(files)
-            elif os.path.splitext(p)[1].lower() == '.mmp':
-                self.mmp_paths.append(p)
-
-        for i in self.mmp_paths:
-            with open(i,'rb') as f:
-                self.nTextures += struct.unpack('<I', f.read(4))[0]
-                
-        if not self.nTextures:
-            print ('No mmp file!')
-            return
-
-        sec = timeit(lambda:self.process_unpacking(('main',cmd)), number=1)
+        sec = timeit(lambda:self.process_unpacking((paths,cmd)), number=1)
         print ('Time used: {:.2f} sec\n'.format(sec))
         
 
     #######################
     # bmp packing.
     #######################
-    def process_packing(self, params):
+    def process_packing(self, params, FLAG='init'):
         cpu  = CPU_COUNT
-        if params[0] == 'main':
-            cmd = params[1]
+
+        if FLAG == 'init':
+            global TIMER
+            paths, cmd = params
+            str_ = '\rFiles pre-parsing...'
+            print (str_, end='')
+            if cmd:
+                TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+                TIMER.start()
+
+            self.dir_paths = []
+            self.nTextures = 0
+            for p in paths:
+                for root, dirs, files in os.walk(p):
+                    files = [i for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
+                    if files:
+                        self.dir_paths.append((root,files))
+                        self.nTextures += len(files)
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+            print ('\n')
+
+            if not self.nTextures:
+                print ('No Image!')
+                return
+
+            #------------------------------
             print ('bmp packing...\n')
-            self.isrun = 1
             # 多进程通信管理
             manager = Manager()
             q = manager.Queue()
             # 控制台模式下创建进度条
             if cmd:
-                timer = threading.Timer(0.1, progress_bar, (self, self.nTextures, q))
-                timer.start()
+                TIMER = threading.Timer(0.1, progress_bar, (self.nTextures, q))
+                TIMER.start()
 
             # 开启多进程任务分配
             pool = ProcessPoolExecutor(cpu)
             futures = []
             for task in self.dir_paths:
-                future = pool.submit(self.process_packing,('Process',q,task))
+                future = pool.submit(self.process_packing, (task,q), FLAG='Process')
                 futures.append(future)
             pool.shutdown()
-                
-            self.isrun = 0
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
             qsize = q.qsize()
-            time.sleep(0.2)
 
             length = len(self.dir_paths)
-            print ('\n\n%d images processed done! A total of %d mmp files:' % (qsize, length))
+            print ('\r%d images processed done! A total of %d mmp files:' % (qsize, length))
             for i in futures:
                 result = i.result()
                 if result: print (result)
-            print ('\n', end='')
-        elif params[0] == 'Process':
+            print ('')
+
+        elif FLAG == 'Process':
+            root, files = params[0] # abs path, files name
             q = params[1]
-            root = params[2][0] # abs path
-            files = params[2][1] # files name
             
             old_nTextures = [0,0]
             nOverwrites   = 0
@@ -365,7 +466,7 @@ class mmp_convert(object):
                 pool = ThreadPoolExecutor(4)
                 futures = []
                 for file in files:
-                    future = pool.submit(self.process_packing, ('Thread', data_q, (root,file)))
+                    future = pool.submit(self.process_packing, ((root,file), data_q), FLAG='Thread')
                     futures.append(future)
 
                 for i in range(len(files)):
@@ -385,11 +486,10 @@ class mmp_convert(object):
                 now = new_nTextures
                 )
 
-        elif params[0] == 'Thread':
+        elif FLAG == 'Thread':
             bpp    = self.bpp
+            root, file_name = params[0]
             data_q = params[1]
-            root   = params[2][0]
-            file_name = params[2][1]
 
             file = os.path.join(root, file_name)
             BytesIO = io.BytesIO()
@@ -431,10 +531,10 @@ class mmp_convert(object):
                 bmp_data = BytesIO.getvalue
                 im_data  = img.tobytes() + bytes(palette)
                 
-                crc32= binascii.crc32(bmp_data()) # 校检和保留0似乎也没影响，这里我使用crc32
+                CRC32= crc32(bmp_data()) # 校检和保留0似乎也没影响，这里我使用crc32
 
                 name = str_codec(os.path.splitext(file_name)[0], 'encode')
-                two,checksum,size,name_len = 2, crc32, len(im_data)+12, len(name)
+                two,checksum,size,name_len = 2, CRC32, len(im_data)+12, len(name)
                 im_type,width,height       = self.gettype[mode], im_size[0], im_size[1]
 
                 BytesIO.seek(0)
@@ -442,7 +542,7 @@ class mmp_convert(object):
                 BytesIO.write(name)
                 BytesIO.write(struct.pack('<III', im_type,width,height))
                 BytesIO.write(im_data)
-                BytesIO.truncate(BytesIO.tell())
+                BytesIO.truncate()
 
                 data_q.put(BytesIO)
             except:
@@ -457,66 +557,160 @@ class mmp_convert(object):
             self.bpp = bpp
             self.overwrite = overwrite
 
-        self.dir_paths = []
-        self.nTextures = 0
-        for p in paths:
-            for root, dirs, files in os.walk(p):
-                files = [i for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
-                if files:
-                    self.dir_paths.append((root,files))
-                    self.nTextures += len(files)
-
-        if not self.nTextures:
-            print ('No Image!')
-            return
-
-        sec = timeit(lambda:self.process_packing(('main',cmd)), number=1)
+        sec = timeit(lambda:self.process_packing((paths,cmd)), number=1)
         print ('Time used: {:.2f} sec\n'.format(sec))
 
         
     #######################
     # convert to Xbpp.
     #######################
-    def process_tobpp(self, params):
+    def process_tobpp(self, params, FLAG='init'):
         cpu  = CPU_COUNT
-        if params[0] == 'main':
-            cmd = params[1]
+       
+        if FLAG == 'init':
+            global TIMER
+            paths, cmd = params
+            str_ = '\rFiles pre-parsing...'
+            print (str_, end='')
+            if cmd:
+                TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+                TIMER.start()
+            
+            self.img_paths = []
+            self.mmp_paths = []
+            self.nTextures = 0
+            for p in paths:
+                if os.path.isdir(p):
+                    for root, dirs, files in os.walk(p):
+                        files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() == '.mmp']
+                        self.mmp_paths.extend(files)
+                        
+                        files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
+                        self.img_paths.extend(files)
+                        self.nTextures += len(files)
+                else:
+                    ext_name = os.path.splitext(p)[1].lower()
+                    if ext_name == '.mmp':
+                        self.mmp_paths.append(p)
+                    elif ext_name in self.valid_format:
+                        self.img_paths.append(p)
+                        self.nTextures += 1
+            
+            for file in self.mmp_paths:
+                with open(file,'rb') as f:
+                    self.nTextures += struct.unpack('<I', f.read(4))[0]
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+            print ('\n')
+
+            if not self.nTextures:
+                print ('No files need to be converted!')
+                return
+
+            #--------------------------------
             print ('mmp converting...\n')
-            self.isrun = 1
             # 多进程通信管理
             manager = Manager()
             q = manager.Queue()
+            fix_count = manager.Queue()
             # 控制台模式下创建进度条
             if cmd:
-                timer = threading.Timer(0.1, progress_bar, (self, self.nTextures, q))
-                timer.start()
+                TIMER = threading.Timer(0.1, progress_bar, (self.nTextures, q, fix_count))
+                TIMER.start()
 
             # 开启多进程任务分配
             pool = ProcessPoolExecutor(cpu)
-            futures = []
+            Futures = []
+            for task in self.img_paths:
+                future = pool.submit(self.process_tobpp, (task,q,fix_count), FLAG='ProcessIMG')
+                Futures.append(future)
             for task in self.mmp_paths:
-                future = pool.submit(self.process_tobpp,('Process',q,task))
-                futures.append(future)
+                future = pool.submit(self.process_tobpp, (task,q,fix_count), FLAG='Process')
+                Futures.append(future)
             pool.shutdown()
-                
-            self.isrun = 0
-            # qsize = q.qsize()
-            time.sleep(0.2)
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
 
-            length = len(self.mmp_paths)
-            print ('\n\n%d mmp file convert to %sbpp done.\n' % (length,self.bpp))
-        elif params[0] == 'Process':
-            q = params[1]
-            file = params[2]
+            error_lst = []
+            nRepeats = nErrors = nRepeatIMGs = 0
+            repeat_msg = error_msg = repeatIMG_msg = ''
+            for i in Futures:
+                result = i.result()
+                if result:
+                    type_, file = result
+                    if type_ == 2:
+                        self.img_paths.remove(file)
+                        nRepeatIMGs += 1
+                    else:
+                        self.mmp_paths.remove(file)
+                        if type_ == 1:
+                            error_lst.append(
+                                'Error: "{}" Invalid file.'.format(os.path.split(file)[1])
+                            )
+                            nErrors += 1
+                        elif type_ == 0:
+                            nRepeats += 1
+            if nRepeats:
+                repeat_msg = ' Repeat {}.'.format(nRepeats)
+            if nErrors:
+                error_msg  = ' Error {}.'.format(nErrors)
+            if nRepeatIMGs:
+                repeatIMG_msg = ' Repeat {}.'.format(nRepeatIMGs)
+            img_length = len(self.img_paths)
+            mmp_length = len(self.mmp_paths)
+            
+            print ('\r{} img files convert to {} bpp done.{}'.format(img_length, self.bpp, repeatIMG_msg))
+            print ('{} mmp files convert to {} bpp done.{}{}'.format(mmp_length, self.bpp, repeat_msg, error_msg))
+            for i in error_lst:
+                print (i)
+            print ('')
+
+        elif FLAG == 'ProcessIMG':
+            bpp = self.bpp
+            file,q,fix_count = params
+            
+            with open(file, 'rb') as f:
+                f.seek(28)
+                biBitCount = struct.unpack('<H', f.read(2))[0]
+            if str(biBitCount) == bpp:
+                fix_count.put(1)
+                return (2, file)
+                
+            img = Image.open(file)
+            if self.maxsize:
+                img = IMG_resize(img, self.maxsize)
+            
+            t_mode = self.bpp2mode[bpp]
+            img = image_convert(img, t_mode)
+            
+            name = os.path.splitext(file)[0]
+            if self.overwrite:
+                im_path = '{}.bmp'.format(name)
+            else:
+                im_path = '{}_to{}bpp.bmp'.format(name, bpp)
+            img.save(im_path)
+            q.put(1)
+        
+        elif FLAG == 'Process':
+            file,q,fix_count = params
 
             mmp_file= open(file,'rb')
             header4b = mmp_file.read(4)
             nTextures= struct.unpack('<I', header4b)[0]
 
+            repeats = 0
+            invalid_file = 0
+            mode = self.bpp2mode[self.bpp]
             MMP_MAP = []
             for i in range(nTextures):
                 two,checksum,size,name_len\
                      = struct.unpack('<HIII', mmp_file.read(14))
+                if two != 2:
+                    invalid_file = 1
+                    break
                 name = mmp_file.read(name_len)
                 im_type,width,height\
                      = struct.unpack('<III', mmp_file.read(12))
@@ -531,9 +725,14 @@ class mmp_convert(object):
                     (start_seek, end_seek - start_seek)
                     )
                 )
+                if self.getmode[im_type] == mode:
+                    repeats += 1
+            if (repeats == nTextures) or invalid_file:
+                fix_count.put(nTextures)
+                return (invalid_file, file)
 
-            new_mmp_name = '{}_to{}bpp.mmp'.format(os.path.splitext(file)[0], self.bpp)
-            new_mmp_file = open(new_mmp_name,'wb')
+            tmp_mmp_name = '{}_tmp'.format(file)
+            new_mmp_file = open(tmp_mmp_name,'wb')
             new_mmp_file.write(header4b)
 
             data_q = Queue()
@@ -544,12 +743,12 @@ class mmp_convert(object):
                 future = pool.submit(
                     self.process_tobpp,
                     (
-                    'Thread',
                     task,
                     data_q,
                     mmp_file,
                     lock
-                    )
+                    ),
+                    FLAG = 'Thread'
                 )
                 futures.append(future)
 
@@ -563,24 +762,25 @@ class mmp_convert(object):
             new_mmp_file.close()
             if self.overwrite:
                 os.remove(file)
-                os.rename(new_mmp_name, file)
-        elif params[0] == 'Thread':
+                os.rename(tmp_mmp_name, file)
+            else:
+                new_mmp_name = '{}_to{}bpp.mmp'.format(os.path.splitext(file)[0], self.bpp)
+                os.rename(tmp_mmp_name, new_mmp_name)
+        elif FLAG == 'Thread':
             bpp = self.bpp
             two,checksum,size,name_len,name,\
                 im_type,width,height,data_seek\
-                = params[1]
-            data_q = params[2]
-            mmp_file = params[3]
+                = params[0]
+            data_q, mmp_file, lock = params[1:]
             
-            lock = params[4]
             lock.put(1)
             data = read_file(mmp_file, data_seek[0], data_seek[1])
             lock.get()
             
             BytesIO = io.BytesIO()
-            mode    = self.getmode[im_type]
-            mode2   = self.bpp2mode[bpp]
-            if mode == mode2:
+            s_mode    = self.getmode[im_type]
+            t_mode   = self.bpp2mode[bpp]
+            if s_mode == t_mode:
                 BytesIO.write(struct.pack('<HIII', two,checksum,size,name_len))
                 BytesIO.write(name)
                 BytesIO.write(struct.pack('<III', im_type,width,height))
@@ -589,17 +789,21 @@ class mmp_convert(object):
                 return
 
             if im_type == self.Palette:
-                img= Image.frombytes(mode,(width,height),data[:-768])
+                img= Image.frombytes(s_mode, (width,height),data[:-768])
                 palette= map(lambda i:min(i<<2 , 255),data[-768:])
                 img.putpalette(palette)
             else:
-                img= Image.frombytes(mode,(width,height),data)
-            img = image_convert(img, mode2)
+                img= Image.frombytes(s_mode, (width,height),data)
+                
+            if self.maxsize:
+                img = IMG_resize(img, self.maxsize)
+                width,height = img.size
+            img = image_convert(img, t_mode)
                 
             #-----------------------
             # 检查调色板
             palette = b''
-            if mode2=='P':
+            if t_mode=='P':
                 # 调色板像素除以4适应BoD
                 palette= map(lambda i: i>>2, img.getpalette())
 
@@ -610,73 +814,32 @@ class mmp_convert(object):
             bmp_data = BytesIO.getvalue
             im_data  = img.tobytes() + bytes(palette)
             
-            crc32= binascii.crc32(bmp_data()) # 校检和保留0似乎也没影响，这里我使用crc32
+            CRC32 = crc32(bmp_data()) # 校检和保留0似乎也没影响，这里我使用crc32
 
-            two,checksum,size,name_len = 2, crc32, len(im_data)+12, len(name)
-            im_type = self.gettype[mode2]
+            two,checksum,size,name_len = 2, CRC32, len(im_data)+12, len(name)
+            im_type = self.gettype[t_mode]
 
             BytesIO.seek(0)
             BytesIO.write(struct.pack('<HIII', two,checksum,size,name_len))
             BytesIO.write(name)
             BytesIO.write(struct.pack('<III', im_type,width,height))
             BytesIO.write(im_data)
-            BytesIO.truncate(BytesIO.tell())
+            BytesIO.truncate()
 
             data_q.put(BytesIO)
 
-    def tobpp(self, paths=[], bpp='8', overwrite=False, cmd=False):
+    def tobpp(self, paths=[], bpp='8', maxsize=None, overwrite=False, cmd=False):
         if cmd:
             paths = parse_args.path
             self.bpp = parse_args.bpp or bpp
+            self.maxsize = parse_args.maxsize
             self.overwrite = parse_args.yes
         else:
             self.bpp = bpp
+            self.maxsize = maxsize
             self.overwrite = overwrite
 
-        self.mmp_paths = []
-        self.nTextures = 0
-        for p in paths:
-            if os.path.isdir(p):
-                for root, dirs, files in os.walk(p):
-                    files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() == '.mmp']
-                    self.mmp_paths.extend(files)
-            elif os.path.splitext(p)[1].lower() == '.mmp':
-                self.mmp_paths.append(p)
-
-        error_msg = []
-        mode = self.bpp2mode[self.bpp]
-        for file in self.mmp_paths[:]:
-            with open(file,'rb') as f:
-                nTextures = struct.unpack('<I', f.read(4))[0]
-                repeats = 0
-                invalid_file = 0
-                for i in range(nTextures):
-                    two,checksum,size,name_len\
-                        = struct.unpack('<HIII', f.read(14))
-                    if two != 2:
-                        invalid_file = 1
-                        str_ = 'Error: "{}" Invalid file.'.format(os.path.split(file)[1])
-                        error_msg.append(str_)
-                        break
-                    name = f.read(name_len)
-                    im_type,width,height\
-                        = struct.unpack('<III', f.read(12))
-                    f.seek(size-12, 1)
-                    repeats += (self.getmode[im_type] == mode)
-                if (repeats == nTextures) or invalid_file:
-                    self.mmp_paths.remove(file)
-                    continue
-                self.nTextures += nTextures
-                
-        if not self.nTextures:
-            print ('No files need to be converted!')
-            return
-
-        sec = timeit(lambda:self.process_tobpp(('main',cmd)), number=1)
-        if error_msg:
-            for i in error_msg:
-                print (i)
-            print ('\n', end='')
+        sec = timeit(lambda:self.process_tobpp((paths, cmd)), number=1)
         print ('Time used: {:.2f} sec\n'.format(sec))
 
 
@@ -684,8 +847,16 @@ class mmp_convert(object):
     # create dat files.
     #######################
     def todat(self, paths=[], cmd=False):
+        global TIMER
         if cmd:
             paths = parse_args.path
+
+        str_ = '\rFiles pre-parsing...'
+        print (str_, end='')
+        if cmd:
+            TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+            TIMER.start()
+
         mmp_paths = []
         for p in paths:
             if os.path.isdir(p):
@@ -694,6 +865,12 @@ class mmp_convert(object):
                     mmp_paths.extend(files)
             elif os.path.splitext(p)[1].lower() == '.mmp':
                 mmp_paths.append(p)
+        if TIMER:
+            TIMER.interval = 0
+            sleep(0.2)
+        print ('\n')
+        
+        print ('dat generation...\n')
 
         error_msg = []
         for file in mmp_paths[:]:
@@ -719,23 +896,215 @@ class mmp_convert(object):
         print ('{} dat files created done.\n'.format(len(mmp_paths)))
         for i in error_msg:
             print (i)
+            
+            
+    #######################
+    # create dat files.
+    #######################
+    def remove(self, path=None, names=[], cmd=False):
+        if cmd:
+            file = parse_args.path[0]
+        else:
+            file = list(path)[0]
+            
+        mmp_name = os.path.split(file)[1]
+        if os.path.splitext(mmp_name)[1].lower() != '.mmp':
+            str_ = 'Error: "{}" Invalid file.\n'.format(mmp_name)
+            print (str_)
+            return 
+            
+        global TIMER
+        str_ = '\rFiles pre-parsing...'
+        print (str_, end='')
+        if cmd:
+            TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+            TIMER.start()
+            
+        width = 79
+        MMP_MAP = {}
+        Name2Index= {}
+        NameCount = []
+        with open(file,'rb') as mmp_file:
+            nTextures = struct.unpack('<I', mmp_file.read(4))[0]
+            for i in range(nTextures):
+                start_seek = mmp_file.tell()
+                two,checksum,size,name_len = struct.unpack('<HIII', mmp_file.read(14))
+                if two!=2:
+                    str_ = 'Error: "{}" Invalid file.\n'.format(mmp_name)
+                    print (str_)
+                    return
+                im_name = str_codec(mmp_file.read(name_len))
+                end_seek = mmp_file.seek(size,1) # current_pos + size
+                MMP_MAP[i] = (im_name, start_seek, end_seek-start_seek)
+                Name2Index[im_name] = i
+                NameCount.append(im_name)
+        KEY_ORDERED = list(range(nTextures))
+        KEY_ORDERED.sort(key=lambda i: MMP_MAP[i][0].lower())
+        if TIMER:
+            TIMER.interval = 0
+            sleep(0.2)
+        print ('\r%s' % (' '*width))
+        if nTextures == 0:
+            print ('Empty file.\n')
+            return
+        #---------------------------
+        errors = []
+        numbers = []
+        if not names:
+            title = '>>> {}\n'.format(mmp_name)
+            
+            cmd_font.SetColor(cmd_font.LightGreen)
+            stdout.write(title)
+            cmd_font.SetColor()
+            print ('='*width)
+            print ('')
+
+            column = 3
+            row  = ceil(nTextures / column)
+            L_n1 = len(str(row)) + 2
+            L_n2 = len(str(row*2)) + 3
+            L_n3 = len(str(nTextures)) + 3
+            size = (width - L_n1 - L_n2 - L_n3) // column
+            num_size = (L_n1, L_n2, L_n3)
+            for i in range(row):
+                i += 1
+                row_n = (i, i+row, i+row*2)
+                row_str = []
+                for i2,n in enumerate(row_n):
+                    if n <= nTextures:
+                        key = KEY_ORDERED[n-1]
+                        im_name = MMP_MAP[key][0][:size]
+                        str_ = '{:>%d}{:<%d}' % (num_size[i2], size)
+                        n = '{}. '.format(n)
+                        row_str.append([NameCount.count(im_name)>1, str_.format(n, im_name)])
+                for l in row_str:
+                    if l[0]:
+                        cmd_font.SetColor(cmd_font.LightRed)
+                        stdout.write(l[1])
+                        cmd_font.SetColor()
+                    else:
+                        stdout.write(l[1])
+                stdout.write('\n')
+            print ('-'*width)
+            print ('')
+            print ('- Please enter numbers, separated by spaces.')
+            while True:
+                numbers = input('remove: ')
+                if numbers.lower() in ('q','exit'):
+                    return
+                if numbers:
+                    break
+            numbers = numbers.split()
+            for n,str_ in enumerate(numbers[:]):
+                try:
+                    i = int(str_)-1
+                    if i >= nTextures or i < 0:
+                        raise IndexError
+                    numbers[n] = KEY_ORDERED[i]
+                except:
+                    numbers.remove(str_)
+                    errors.append(str_)
+        else:
+            for str_ in names:
+                if i not in Name2Index:
+                    errors.append(str_)
+                else:
+                    numbers.append(Name2Index[str_])
+        tmp = []
+        for i in numbers:
+            if i not in tmp:
+                tmp.append(i)
+        numbers = tmp
+        if numbers:
+            start = 0
+            KEY_MMP_KEEP = []
+            min_ = min(numbers)
+            start = MMP_MAP[min_][1]
+            KEY_MMP_KEEP = [i for i in range(min_, nTextures) if i not in numbers]
+            with open(file, 'rb') as mmp_file:
+                with open(file, 'rb+') as new_mmp_file:
+                    if not KEY_MMP_KEEP:
+                        new_mmp_file.truncate(start)
+                    else:
+                        new_mmp_file.seek(start)
+                        for i in KEY_MMP_KEEP:
+                            seek, size = MMP_MAP[i][1:]
+                            mmp_file.seek(seek)
+                            data = mmp_file.read(size)
+                            new_mmp_file.write(data)
+                        new_mmp_file.truncate()
+
+                    new_mmp_file.seek(0)
+                    nRemoves = len(numbers)
+                    new_nTextures = nTextures - nRemoves
+                    new_mmp_file.write(struct.pack('<I', new_nTextures))
+            print ('')
+            print ('-'*width)
+            for i in numbers:
+                print ('remove {} done.'.format(MMP_MAP[i][0]))
+            print ('-'*width)
+            print ('\n{} has {}, remove {}, now {}.\n'.format(
+                        mmp_name,
+                        nTextures,
+                        nRemoves,
+                        new_nTextures
+                        )
+                    )
+        if errors:
+            print ('Invalid input: {}\n'.format(', '.join(errors)))
 
 
+############################################################
+############################################################
+class CmdFont(object):
+    STD_INPUT_HANDLE = -10
+    STD_OUTPUT_HANDLE = -11
+    STD_ERROR_HANDLE = -12
+     
+    #colors
+    # 0 = 黑色       8 = 灰色
+    # 1 = 蓝色       9 = 淡蓝色
+    # 2 = 绿色       A = 淡绿色
+    # 3 = 青色       B = 淡青色
+    # 4 = 红色       C = 淡红色
+    # 5 = 紫色       D = 淡紫色
+    # 6 = 黄色       E = 淡黄色
+    # 7 = 白色       F = 亮白色
+    Black,    Blue,        Green,       Aqua,\
+    Red,      Purple,      Yellow,      White,\
+    Gray,     LightBlue,   LightGreen,  LightAqua,\
+    LightRed, LightPurple, LightYellow, BrightWhite\
+        = [i for i in range(16)]
+    
+    def __init__(self):
+        # get handle
+        self.std_out_handle = windll.kernel32.GetStdHandle(self.STD_OUTPUT_HANDLE)
+        
+    def SetColor(self, color=0x7, bg_color=0, handle=None):
+        handle = handle or self.std_out_handle
+        return windll.kernel32.SetConsoleTextAttribute(handle, color | bg_color)
+            
 
+            
+            
 ########################## INSTANCE WRAPPERS
 # mmp_convert
 mmp = mmp_convert()
+
+# Cmd Font Color
+cmd_font = CmdFont()
 
 
 # -------------------------------------------
 classes_defined = dir()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument('--type','-t', type=str, default=None, metavar='type')
     parser.add_argument('--func','-f', type=str, default=None, metavar='method')
     parser.add_argument('--bpp', '-b', type=str, default=None, metavar='bpp', choices=['8','24','32','Alpha'])
     parser.add_argument('--path','-p', type=str, default=[],   metavar='file paths', nargs='*')
+    parser.add_argument('--maxsize','-max', type=int, default=None,   metavar='maxsize')
     parser.add_argument('--yes', '-y', action='store_true')
     parse_args = parser.parse_args()
 
@@ -744,30 +1113,30 @@ if __name__ == "__main__":
 
 """
 mmp.unpacking(paths[, bpp=None])
-    :param paths: [mmp files or folders]
-    :param bpp:   8/24/32/Alpha
+    :param paths:   [mmp files/folders]
+    :param bpp:     8/24/32/Alpha
 
 mmp.packing(paths[, bpp=None, overwrite=False])
-    :param paths: [only image folders]
-    :param bpp:   8/24/32/Alpha
+    :param paths:   [image folders]
+    :param bpp:     8/24/32/Alpha
     :param overwrite:   True/False
 
-mmp.tobpp(paths[, bpp='8', overwrite=False])
-    :param paths: [mmp files or folders]
-    :param bpp:   8/24/32/Alpha
+mmp.tobpp(paths[, bpp='8', maxsize=None, overwrite=False])
+    :param paths:   [mmp/img files/folders]
+    :param bpp:     8/24/32/Alpha
+    :param maxsize:     Resolution(largest side)
     :param overwrite:   True/False
 
 mmp.todat(paths)
-    :param paths: [only mmp files]
+    :param paths:   [mmp files/folders]
 
-# mmp.remove(path, names) No function!
+mmp.remove(path, names)
+    :param path:    mmp file
+    :names:         [image names]
 
 skip = 4 - ((m_iImageWidth * m_iBitsPerPixel)>>3) & 3
 
 skip = 4 - (biWidth*biBitCount)>>3 & 3
 skip = (skip!=4 and skip) or 0
-out =im.convert("P", palette=Image.ADAPTIVE,colors=256)
-struct.unpack('<2sIIIIIIHHIIIIII', f3.seek(0)+1 and f3.read(54))
-alpha=Image.frombytes('L',(256,32),d[3::4]).transpose(Image.FLIP_TOP_BOTTOM)
 
 """

@@ -1,5 +1,6 @@
 @echo off
 cd /d %~dp0
+cd..
 
 set paths=%*
 if "%~1"=="" (echo Please drag the file^(only folders^) to be converted into this file!&pause&exit /b)

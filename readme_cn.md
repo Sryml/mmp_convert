@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)&emsp;&emsp;[主页](https://github.com/Sryml/mmp_convert)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[README EN](https://github.com/Sryml/mmp_convert/tree/v1.0#readme)
 
 <div align="center">
   <img alt="GitHub release" src="https://img.shields.io/github/release/sryml/mmp_convert.svg?style=plastic">
@@ -40,42 +40,63 @@ July 2019 by Sryml
   在cmd输入`pip --version`
 3. 安装第三方库PIL  
   在cmd输入`pip install Pillow`
-4. 拖动需要处理的文件或文件夹到.bat文件上
+4. 拖动需要处理的文件或文件夹到`.bat`文件上  
 
+p.s. 调整`mmp_convert.py`文件中的变量`CPU_COUNT`可降低cpu使用率
+
+
+## 功能描述
+#### unpacking  
+- 解包mmp，1个可选参数  
+- `--bpp`: 8/24/32，默认为原mmp位数
+![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
   
-## 描述
-- mmp_convert程序提供了四个功能
-  - unpacking  
-    解包mmp，1个可选参数  
-    `--bpp`: 8/24/32，默认为原mmp位数
-    ![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
-    
-    <br>
-    
-  - packing  
-    打包/添加图片,2个可选参数  
-    `--bpp`: 8/24/32，默认为原图片位数  
-    `-y`: 覆盖，没有-y则不覆盖
-    ![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
-    
-    <br>
-    
-  - tobpp  
-    转换到其它位数，2个可选参数  
-    `--bpp`: 8/24/32，默认为8  
-    `-y`: 覆盖，没有-y则不覆盖
-    ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
-    
-    <br>
-    
-  - todat  
-    生成dat名称列表
-    ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
-    
-    <br>
-    
+<br>
+  
+#### packing  
+- 打包/添加图片,2个可选参数  
+- `--bpp`: 8/24/32，默认为原图片位数  
+- `-y`: 覆盖，没有-y则不覆盖
+![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
+
+<br>
+
+#### tobpp  
+- 转换到其它位数，3个可选参数  
+- `--bpp`: 8/24/32，默认为8  
+- `-max`: 分辨率（最大的边），像768  
+- `-y`: 覆盖，没有-y则不覆盖
+![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
+
+<br>
+
+#### todat  
+- 生成dat名称列表
+![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
+
+<br>
+
+#### remove  
+- 拖动mmp文件到`Remove.bat`，它会显示所有图像和序号。  
+- 输入多个序号以空格分隔可以删除图像。
+![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
+  
+  
+## 更新日志
+### v1.0
+`[+]`扩展`tobpp`功能，支持直接转换图像文件，支持分辨率修改。  
+`[+]`添加`remove`功能 - 删除mmp文件中的图像  
+`[+]`增加字体颜色，绿色的进度条  
+`[^]`修复带Alpha的图像直接转换为8bpp导致失真（先转为24bpp再转为8bpp）  
+`[^]`改善预解析文件  
+`[^]`其它代码修改
+
+<br>
+  
+### v0.9
+- mmp_convert程序提供了四个功能  
+  unpacking, packing, tobpp, todat
 - 支持多进程快速处理文件
-- 暂时没有删除功能，请重新打包即可
 
   
 ## 已知问题
