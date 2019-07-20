@@ -85,9 +85,9 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
   
 ## Update log
 ### v1.0
-`[+]`Expand `tobpp` function, support direct conversion of image files, support for resolution modification.
-`[+]`Add `remove` function - delete images in mmp file
-`[+]`Increase font color, green progress bar  
+`[+]`Expand `tobpp` function, support direct conversion of image files, support for resolution modification.  
+`[+]`Add `remove` function - delete images in mmp file.  
+`[+]`Increase font color, green progress bar.  
 `[^]`Fixing images with Alpha directly converted to 8bpp causes distortion (first converted to 24bpp and then to 8bpp).  
 `[^]`Improve pre-parsed files.  
 `[^]`Other code modifications.
