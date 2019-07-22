@@ -78,6 +78,7 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 - 2 optional parameter  
   `--bpp`: 8/24/32, default 8.  
   `-y`: overwrite, no -y does not overwrite.
+- 32bpp-1024 To 8bpp-768
 ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
 
 <br>
@@ -86,6 +87,7 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 - Generate a list of names to dat  
 - 1 required parameter  
   `--path`: File or folder paths.
+- MMP To Dat
 ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
 
 <br>
@@ -95,6 +97,7 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 - 1 required parameter  
   `--path`: File path.
 - Enter multiple numbers separated by spaces to delete images.
+- MMP Remove
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
 
 #### toImg
@@ -106,6 +109,8 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
   `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
   `-max`: resolution(maximum side), like 768.  
   `-y`: overwrite, no -y does not overwrite.
+- BMP To PNG
+![mmp-toImg](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-toImg.gif)
 
   
 ## Update log

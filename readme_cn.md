@@ -77,6 +77,7 @@ p.s. 调整`mmp_convert.py`文件中的变量`CPU_COUNT`可降低cpu使用率
 - 2个可选参数  
   `--bpp`: 8/24/32，默认为8  
   `-y`: 覆盖，没有-y则不覆盖
+- 32bpp-1024 To 8bpp-768
 ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
 
 <br>
@@ -85,6 +86,7 @@ p.s. 调整`mmp_convert.py`文件中的变量`CPU_COUNT`可降低cpu使用率
 - 生成dat名称列表  
 - 1个必须参数  
   `--path`: 文件或文件夹路径
+- MMP To Dat
 ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
 
 <br>
@@ -94,6 +96,7 @@ p.s. 调整`mmp_convert.py`文件中的变量`CPU_COUNT`可降低cpu使用率
 - 1个必须参数  
   `--path`: 文件路径
 - 输入多个序号以空格分隔可以删除图像。
+- MMP Remove
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
 
 #### toImg
@@ -105,6 +108,8 @@ p.s. 调整`mmp_convert.py`文件中的变量`CPU_COUNT`可降低cpu使用率
   `--bpp`: 8/24/32/Alpha，默认为原图片位数。  
   `-max`: 分辨率（最大的边），像768  
   `-y`: 覆盖，没有-y则不覆盖
+- BMP To PNG
+![mmp-toImg](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-toImg.gif)
   
   
 ## 更新日志
