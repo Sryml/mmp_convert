@@ -56,6 +56,7 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
   `--path`: File or folder paths.
 - 1 optional parameter  
   `--bpp`: 8/24/32, default bpp from the original mmp.  
+
 ![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
 
 <br>
@@ -67,6 +68,7 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 - 2 optional parameter  
   `--bpp`: 8/24/32, default bpp from the original image.  
   `-y`: overwrite, no -y does not overwrite.  
+
 ![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
 
 <br>
@@ -77,7 +79,8 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
   `--path`: File or folder paths.
 - 2 optional parameter  
   `--bpp`: 8/24/32, default 8.  
-  `-y`: overwrite, no -y does not overwrite.
+  `-y`: overwrite, no -y does not overwrite.  
+
 32bpp-1024 To 8bpp-768:  
 ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
 
@@ -86,7 +89,8 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 #### todat  
 - Generate a list of names to dat  
 - 1 required parameter  
-  `--path`: File or folder paths.
+  `--path`: File or folder paths.  
+
 MMP To Dat:  
 ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
 
@@ -96,7 +100,8 @@ MMP To Dat:
 - Delete images in mmp file  
 - 1 required parameter  
   `--path`: File path.
-- Enter multiple numbers separated by spaces to delete images.
+- Enter multiple numbers separated by spaces to delete images.  
+
 MMP Remove:  
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
 
@@ -108,7 +113,8 @@ MMP Remove:
 - 3 optional parameter  
   `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
   `-max`: resolution(maximum side), like 768.  
-  `-y`: overwrite, no -y does not overwrite.
+  `-y`: overwrite, no -y does not overwrite.  
+  
 BMP To PNG:  
 ![mmp-toImg](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-toImg.gif)
 
