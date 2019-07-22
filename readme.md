@@ -47,47 +47,73 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 
 
 ## Functional description
+#### Supported formats
+- bmp, jpeg, png ,webp
+
 #### unpacking  
-- Unpacking mmp, 1 optional parameter:  
-- `--bpp`: 8/24/32, default bpp from the original mmp
+- Unpacking MMP  
+- 1 required parameter  
+  `--path`: File or folder paths.
+- 1 optional parameter  
+  `--bpp`: 8/24/32, default bpp from the original mmp
 ![mmp-unpacking](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-unpacking.gif)
 
 <br>
 
 #### packing  
-- Pack/add images, 2 optional parameters:  
-- `--bpp`: 8/24/32, default bpp from the original image.  
-- `-y`: overwrite, no -y does not overwrite.
+- Pack/add images to MMP  
+- 1 required parameter  
+  `--path`: File or folder paths.
+- 2 optional parameter  
+  `--bpp`: 8/24/32, default bpp from the original image.  
+  `-y`: overwrite, no -y does not overwrite.
 ![mmp-packing](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-packing.gif)
 
 <br>
 
 #### tobpp  
-- Convert to other bpp, 3 optional parameters:  
-- `--bpp`: 8/24/32, default 8.  
-- `-max`: resolution(maximum side), like 768
-- `-y`: overwrite, no -y does not overwrite.
+- Convert MMP to other bpp  
+- 1 required parameter  
+  `--path`: File or folder paths.
+- 2 optional parameter  
+  `--bpp`: 8/24/32, default 8.  
+  `-y`: overwrite, no -y does not overwrite.
 ![mmp-tobpp](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-tobpp.gif)
 
 <br>
 
 #### todat  
-- Generate a list of names to dat.
+- Generate a list of names to dat  
+- 1 required parameter  
+  `--path`: File or folder paths.
 ![mmp-todat](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-todat.gif)
 
 <br>
 
 #### remove  
-- Drag the mmp file to `Remove.bat`, which will display all images and numbers.  
+- Delete images in mmp file  
+- 1 required parameter  
+  `--path`: File path.
 - Enter multiple numbers separated by spaces to delete images.
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
+
+#### toImg
+- Image format convert  
+- 2 required parameter  
+  `--path`: File or folder paths.  
+  `--output`: Output format.
+- 3 optional parameter  
+  `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
+  `-max`: resolution(maximum side), like 768.  
+  `-y`: overwrite, no -y does not overwrite.
 
   
 ## Update log
 ### v1.0
-`[+]`Expand `tobpp` function, support direct conversion of image files, support for resolution modification.  
-`[+]`Add `remove` function - delete images in mmp file.  
-`[+]`Increase font color, green progress bar.  
+`[+]`Added function `remove` - Delete images in mmp file.  
+`[+]`Added function `toImg` - Image format convert.  
+`[+]`Added font color, green progress bar.  
+
 `[^]`Fixing images with Alpha directly converted to 8bpp causes distortion (first converted to 24bpp and then to 8bpp).  
 `[^]`Improve pre-parsed files.  
 `[^]`Other code modifications.

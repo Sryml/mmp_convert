@@ -59,8 +59,8 @@ def IMG_resize(img, maxsize):
             resize = [maxsize, round(im_size[1-idx]*scale)]
             if idx==1:
                 resize.reverse()
-        return img.resize(resize, Image.ANTIALIAS)
-    return img
+        return (1, img.resize(resize, Image.ANTIALIAS))
+    return (0, img)
 
 
 def progress_bar(maximum, q, fix_count=None, run=1):
@@ -155,6 +155,7 @@ class mmp_convert(object):
     # -------------------
     def __init__(self):
         self.bpp     = None
+        self.output  = None
         self.maxsize = None
         self.nTextures = 0
         self.overwrite = False
@@ -331,7 +332,7 @@ class mmp_convert(object):
         
 
     #######################
-    # bmp packing.
+    # Image packing.
     #######################
     def process_packing(self, params, FLAG='init'):
         cpu  = CPU_COUNT
@@ -386,11 +387,20 @@ class mmp_convert(object):
             qsize = q.qsize()
 
             length = len(self.dir_paths)
-            print ('\r%d images processed done! A total of %d mmp files:' % (qsize, length))
+            print ('\r%d images processed done! A total of %d mmp files:\n' % (qsize, length))
+            hr = 0
             for i in futures:
                 result = i.result()
-                if result: print (result)
-            print ('')
+                if result:
+                    if not hr:
+                        cmd_font.SetColor(cmd_font.Aqua)
+                        stdout.write(''.join(['-'*79, '\n']))
+                        hr = 1
+                    stdout.write (''.join([result, '\n']))
+            if hr:
+                stdout.write(''.join(['-'*79, '\n']))
+                cmd_font.SetColor()
+                print ('')
 
         elif FLAG == 'Process':
             root, files = params[0] # abs path, files name
@@ -561,9 +571,9 @@ class mmp_convert(object):
         print ('Time used: {:.2f} sec\n'.format(sec))
 
         
-    #######################
-    # convert to Xbpp.
-    #######################
+    ############################
+    # Convert MMP to other bpp.
+    ############################
     def process_tobpp(self, params, FLAG='init'):
         cpu  = CPU_COUNT
        
@@ -576,7 +586,6 @@ class mmp_convert(object):
                 TIMER = threading.Timer(0.01, progress_bar2, (str_,))
                 TIMER.start()
             
-            self.img_paths = []
             self.mmp_paths = []
             self.nTextures = 0
             for p in paths:
@@ -584,17 +593,10 @@ class mmp_convert(object):
                     for root, dirs, files in os.walk(p):
                         files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() == '.mmp']
                         self.mmp_paths.extend(files)
-                        
-                        files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
-                        self.img_paths.extend(files)
-                        self.nTextures += len(files)
                 else:
                     ext_name = os.path.splitext(p)[1].lower()
                     if ext_name == '.mmp':
                         self.mmp_paths.append(p)
-                    elif ext_name in self.valid_format:
-                        self.img_paths.append(p)
-                        self.nTextures += 1
             
             for file in self.mmp_paths:
                 with open(file,'rb') as f:
@@ -622,9 +624,6 @@ class mmp_convert(object):
             # 开启多进程任务分配
             pool = ProcessPoolExecutor(cpu)
             Futures = []
-            for task in self.img_paths:
-                future = pool.submit(self.process_tobpp, (task,q,fix_count), FLAG='ProcessIMG')
-                Futures.append(future)
             for task in self.mmp_paths:
                 future = pool.submit(self.process_tobpp, (task,q,fix_count), FLAG='Process')
                 Futures.append(future)
@@ -635,65 +634,31 @@ class mmp_convert(object):
                 cmd_font.SetColor()
 
             error_lst = []
-            nRepeats = nErrors = nRepeatIMGs = 0
-            repeat_msg = error_msg = repeatIMG_msg = ''
+            nRepeats = nErrors = 0
+            repeat_msg = error_msg = ''
             for i in Futures:
                 result = i.result()
                 if result:
                     type_, file = result
-                    if type_ == 2:
-                        self.img_paths.remove(file)
-                        nRepeatIMGs += 1
-                    else:
-                        self.mmp_paths.remove(file)
-                        if type_ == 1:
-                            error_lst.append(
-                                'Error: "{}" Invalid file.'.format(os.path.split(file)[1])
-                            )
-                            nErrors += 1
-                        elif type_ == 0:
-                            nRepeats += 1
+                    self.mmp_paths.remove(file)
+                    if type_ == 1:
+                        error_lst.append(
+                            'Error: "{}" Invalid file.'.format(os.path.split(file)[1])
+                        )
+                        nErrors += 1
+                    elif type_ == 0:
+                        nRepeats += 1
             if nRepeats:
-                repeat_msg = ' Repeat {}.'.format(nRepeats)
+                repeat_msg = ' Repeat Images {}.'.format(nRepeats)
             if nErrors:
-                error_msg  = ' Error {}.'.format(nErrors)
-            if nRepeatIMGs:
-                repeatIMG_msg = ' Repeat {}.'.format(nRepeatIMGs)
-            img_length = len(self.img_paths)
+                error_msg  = ' Error MMP {}.'.format(nErrors)
             mmp_length = len(self.mmp_paths)
             
-            print ('\r{} img files convert to {} bpp done.{}'.format(img_length, self.bpp, repeatIMG_msg))
-            print ('{} mmp files convert to {} bpp done.{}{}'.format(mmp_length, self.bpp, repeat_msg, error_msg))
+            print ('\r{} mmp files convert to {} bpp done.{}{}'.format(mmp_length, self.bpp, repeat_msg, error_msg))
             for i in error_lst:
                 print (i)
             print ('')
 
-        elif FLAG == 'ProcessIMG':
-            bpp = self.bpp
-            file,q,fix_count = params
-            
-            with open(file, 'rb') as f:
-                f.seek(28)
-                biBitCount = struct.unpack('<H', f.read(2))[0]
-            if str(biBitCount) == bpp:
-                fix_count.put(1)
-                return (2, file)
-                
-            img = Image.open(file)
-            if self.maxsize:
-                img = IMG_resize(img, self.maxsize)
-            
-            t_mode = self.bpp2mode[bpp]
-            img = image_convert(img, t_mode)
-            
-            name = os.path.splitext(file)[0]
-            if self.overwrite:
-                im_path = '{}.bmp'.format(name)
-            else:
-                im_path = '{}_to{}bpp.bmp'.format(name, bpp)
-            img.save(im_path)
-            q.put(1)
-        
         elif FLAG == 'Process':
             file,q,fix_count = params
 
@@ -796,7 +761,7 @@ class mmp_convert(object):
                 img= Image.frombytes(s_mode, (width,height),data)
                 
             if self.maxsize:
-                img = IMG_resize(img, self.maxsize)
+                img = IMG_resize(img, self.maxsize)[1]
                 width,height = img.size
             img = image_convert(img, t_mode)
                 
@@ -899,7 +864,7 @@ class mmp_convert(object):
             
             
     #######################
-    # create dat files.
+    # mmp remove.
     #######################
     def remove(self, path=None, names=[], cmd=False):
         if cmd:
@@ -953,9 +918,7 @@ class mmp_convert(object):
         if not names:
             title = '>>> {}\n'.format(mmp_name)
             
-            cmd_font.SetColor(cmd_font.LightGreen)
-            stdout.write(title)
-            cmd_font.SetColor()
+            cmd_font.print(title, cmd_font.LightGreen)
             print ('='*width)
             print ('')
 
@@ -979,9 +942,7 @@ class mmp_convert(object):
                         row_str.append([NameCount.count(im_name)>1, str_.format(n, im_name)])
                 for l in row_str:
                     if l[0]:
-                        cmd_font.SetColor(cmd_font.LightRed)
-                        stdout.write(l[1])
-                        cmd_font.SetColor()
+                        cmd_font.print(l[1], cmd_font.LightRed)
                     else:
                         stdout.write(l[1])
                 stdout.write('\n')
@@ -1054,6 +1015,196 @@ class mmp_convert(object):
             print ('Invalid input: {}\n'.format(', '.join(errors)))
 
 
+    #######################
+    # Image format convert.
+    #######################
+    def process_toImg(self, params, FLAG='init'):
+        cpu  = CPU_COUNT
+
+        if FLAG == 'init':
+            global TIMER
+            paths, cmd = params
+            str_ = '\rFiles pre-parsing...'
+            print (str_, end='')
+            if cmd:
+                TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+                TIMER.start()
+
+            self.img_paths = []
+            self.nTextures = 0
+            for p in paths:
+                if os.path.isdir(p):
+                    split = os.path.split(p)
+                    new_dir = '{}_toImg'.format(split[1])
+                    new_dir = os.path.join(split[0], new_dir)
+
+                    for root, dirs, files in os.walk(p):
+                        files = [(root,i) for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
+                        if files and not self.overwrite:
+                            new_root = root.replace(p, new_dir)
+                            if not os.path.exists(new_root):
+                                os.makedirs(new_root)
+                            files = [(i[0],i[1], new_root) for i in files]
+                        self.img_paths.extend(files)
+                        self.nTextures += len(files)
+                else:
+                    root, name = os.path.split(p)
+                    ext_name = os.path.splitext(name)[1].lower()
+                    if ext_name in self.valid_format:
+                        self.img_paths.append((root, name))
+                        self.nTextures += 1
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+            print ('\n')
+
+            if not self.nTextures:
+                print ('No files need to be converted!')
+                return
+
+            #--------------------------------
+            print ('Image converting...\n')
+            # 多进程通信管理
+            manager = Manager()
+            q = manager.Queue()
+            fix_count = manager.Queue()
+            # 控制台模式下创建进度条
+            if cmd:
+                TIMER = threading.Timer(0.1, progress_bar, (self.nTextures, q, fix_count))
+                TIMER.start()
+
+            # 开启多进程任务分配
+            pool = ProcessPoolExecutor(cpu)
+            # pool = ThreadPoolExecutor(cpu)
+            Futures = []
+            for task in self.img_paths:
+                future = pool.submit(self.process_toImg, (task,q,fix_count), FLAG='Process')
+                Futures.append(future)
+            pool.shutdown()
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
+
+            nRepeats = 0
+            repeat_msg = ''
+            for i in Futures:
+                result = i.result()
+                if result:
+                    type_, item = result
+                    self.img_paths.remove(item)
+                    nRepeats += 1
+            if nRepeats:
+                repeat_msg = ' Ignore {} files.'.format(nRepeats)
+            img_length = len(self.img_paths)
+            
+            print ('\r{} Image files convert completed.{}'.format(img_length,repeat_msg))
+            print ('')
+
+        elif FLAG == 'Process':
+            bpp = self.bpp
+            maxsize = self.maxsize
+            task,q,fix_count = params
+            root, im_name = task[0], task[1]
+            name, ext     = os.path.splitext(im_name)
+            
+            file = os.path.join(root, im_name)
+            img = Image.open(file)
+
+            im_size  = img.size
+            S_FORMAT = '.{}'.format(img.format.lower())
+            T_FORMAT = self.output.replace('jpg','jpeg')
+            A_FORMAT = ('.bmp', '.png', '.webp')
+
+            S_MODE   = img.mode
+            T_MODE   = bpp and self.bpp2mode[bpp]
+
+            isbmp      = (S_FORMAT == '.bmp')
+            T_isAlpha  = T_FORMAT in A_FORMAT
+
+            if isbmp:
+                with open(file, 'rb') as f:
+                    f.seek(18)
+                    biWidth, biHeight, biPlanes, biBitCount, biCompression, biSizeImage = struct.unpack('<IIHHII', f.read(20))
+
+                    S_MODE = self.bpp2mode[str(biBitCount)]
+                    img = img.convert(S_MODE)
+                    if T_isAlpha and biBitCount == 32:
+                        if not bpp or bpp=='32':
+                            f.seek(54)
+                            # 跳过BGR三个字节取Alpha，步长为4
+                            alpha= Image.frombytes('L', im_size, f.read()[3::4])
+                            # 检查行序是否翻转
+                            if biWidth*biHeight <= biSizeImage:
+                                alpha= alpha.transpose(Image.FLIP_TOP_BOTTOM)
+                            img.putalpha(alpha)
+
+            is_size   = True #not maxsize
+            is_bpp    = True #not T_isAlpha or (not bpp)
+            #
+            is_format = (S_FORMAT == T_FORMAT)
+            #
+            if maxsize:
+                resize_success, img = IMG_resize(img, maxsize)
+                is_size = not resize_success
+            #
+            if bpp:
+                is_bppCheck = 1
+                if T_FORMAT == '.jpeg':
+                    is_bppCheck = T_MODE not in ('P','RGBA')
+
+                if is_bppCheck:
+                    is_bpp = (S_MODE == T_MODE)
+                    if not is_bpp:
+                        img = image_convert(img, T_MODE)
+            else:
+                if T_FORMAT == '.jpeg':
+                    if S_MODE in ('P','RGBA'):
+                        img = image_convert(img, 'RGB')
+
+            if is_format and is_size and is_bpp:
+                fix_count.put(1)
+                return (0, task)
+            #-----------------------------------------
+            
+            if self.overwrite:
+                BytesIO = io.BytesIO()
+                img.save(BytesIO, T_FORMAT[1:], quality=95)
+                img.close()
+                os.remove(file)
+                im_path = os.path.join(root, '{}{}'.format(name, self.output))
+                with open(im_path, 'wb') as im_file:
+                    im_file.write(BytesIO.getvalue())
+            else:
+                if len(task) > 2:
+                    im_path = os.path.join(task[2], '{}{}'.format(name, self.output))
+                else:
+                    im_path = os.path.join(root, '{}_toImg{}'.format(name, self.output))
+                img.save(im_path, quality=95)
+            q.put(1)
+
+    def toImg(self, path=[], output=None, bpp=None, maxsize=None, overwrite=False, cmd=False):
+        if cmd:
+            paths = parse_args.path
+            self.output = parse_args.output
+            self.bpp = parse_args.bpp
+            self.maxsize = parse_args.maxsize
+            self.overwrite = parse_args.yes
+        else:
+            self.output = output
+            self.bpp = bpp
+            self.maxsize = maxsize
+            self.overwrite = overwrite
+
+        self.output = '.{}'.format(self.output.lower())
+        if self.output not in self.valid_format:
+            print ('Error: Invalid format "{}"'.format(self.output))
+            return
+
+        sec = timeit(lambda:self.process_toImg((paths, cmd)), number=1)
+        print ('Time used: {:.2f} sec\n'.format(sec))
+
+
 ############################################################
 ############################################################
 class CmdFont(object):
@@ -1082,7 +1233,14 @@ class CmdFont(object):
         
     def SetColor(self, color=0x7, bg_color=0, handle=None):
         handle = handle or self.std_out_handle
+        if bg_color:
+            bg_color = bg_color << 4
         return windll.kernel32.SetConsoleTextAttribute(handle, color | bg_color)
+
+    def print(self, str_, color=0x7, bg_color=0):
+        self.SetColor(color, bg_color)
+        stdout.write(str_)
+        self.SetColor()
             
 
             
@@ -1105,6 +1263,7 @@ if __name__ == "__main__":
     parser.add_argument('--bpp', '-b', type=str, default=None, metavar='bpp', choices=['8','24','32','Alpha'])
     parser.add_argument('--path','-p', type=str, default=[],   metavar='file paths', nargs='*')
     parser.add_argument('--maxsize','-max', type=int, default=None,   metavar='maxsize')
+    parser.add_argument('--output', type=str, default=None,   metavar='output')
     parser.add_argument('--yes', '-y', action='store_true')
     parse_args = parser.parse_args()
 
