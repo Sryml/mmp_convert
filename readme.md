@@ -24,15 +24,15 @@ There are 3 mmp programs on the current network:
   
 - SGIMMPWorkstation  
   By SGI. All features are perfect.  
-  packing/unpacking/deleting/adding/generating dat, supporting 8/24/32bpp, is a very convenient software.  
-  The only thing missing is automated batch processing and multi-process.
+  packing/unpacking/deleting/adding/generating dat, support 8/24/32bpp, is a very convenient software.  
+  The only downside is its automated batch processing and multithreading.
   
 <br>
   
 You may have guessed the function of `mmp_convert`:sunglasses:
 - mmp_convert.py  
-  packing/unpacking/adding/generating dat/convert bpp, support 8/24/32bpp, batch automation and multi-process.  
-  Need a python environment.
+  packing/unpacking/deleting/adding/generating dat/convert bpp/convert format, support 8/24/32bpp, batch automation and multi-process.  
+  The most important thing: the python environment
 
 
 ## Instructions
@@ -77,8 +77,9 @@ P.s. Adjust the variable `CPU_COUNT` in the `mmp_convert.py` file to reduce cpu 
 - Convert MMP to other bpp  
 - 1 required parameter  
   `--path`: File or folder paths.
-- 2 optional parameter  
+- 3 optional parameter  
   `--bpp`: 8/24/32, default 8.  
+  `-max`: resolution(Allow the largest edge, ignoring the image below the maximum).  
   `-y`: overwrite, no -y does not overwrite.  
 
 32bpp-1024 To 8bpp-768:  
@@ -112,7 +113,7 @@ MMP Remove:
   `--output`: Output format.
 - 3 optional parameter  
   `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
-  `-max`: resolution(maximum side), like 768.  
+  `-max`: resolution(Allow the largest edge, ignoring the image below the maximum).  
   `-y`: overwrite, no -y does not overwrite.  
   
 BMP To PNG:  
