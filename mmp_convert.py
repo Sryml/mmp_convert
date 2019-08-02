@@ -6,6 +6,8 @@ import os
 import io
 import struct
 import threading
+import json
+import shutil
 
 from argparse import ArgumentParser
 from binascii import crc32
@@ -35,6 +37,16 @@ class Unbuffered(object):
    def __getattr__(self, attr):
        return getattr(self.stream, attr)
 stdout = Unbuffered(stdout)
+
+
+def GenerateName(root, type_='dir', n=0):
+    name = os.path.join(root, '_tmp {}'.format(n))
+    if type_ == 'dir':
+        return not os.path.isdir(name) and name or \
+            GenerateName(root, type_, n+1)
+    elif type_ == 'file':
+        return not os.path.isfile(name) and name or \
+            GenerateName(root, type_, n+1)
 
 
 def image_convert(img, mode):
@@ -140,7 +152,6 @@ def str_codec(str_, method='decode'):
     
 #################################################
 class mmp_convert(object):
-    RES_FOLDER = 'Textures/'
     getmode    = {1:'P' , 2:'L' , 3:'P' , 4:'RGB' , 5:'RGBA'}
     bpp2mode   = {'8':'P' , '24':'RGB' , '32':'RGBA' , 'Alpha':'L'}
     gettype    = {'P':1 , 'L':2 , 'PaletteAlpha':3 , 'RGB':4 , 'RGBA':5}
@@ -157,6 +168,7 @@ class mmp_convert(object):
         self.bpp     = None
         self.output  = None
         self.maxsize = None
+        self.scale   = None
         self.nTextures = 0
         self.overwrite = False
         self.mmp_paths = []
@@ -690,7 +702,7 @@ class mmp_convert(object):
                     (start_seek, end_seek - start_seek)
                     )
                 )
-                if self.getmode[im_type] == mode:
+                if self.getmode[im_type]==mode and (not self.maxsize or max(width,height) < self.maxsize):
                     repeats += 1
             if (repeats == nTextures) or invalid_file:
                 fix_count.put(nTextures)
@@ -745,7 +757,7 @@ class mmp_convert(object):
             BytesIO = io.BytesIO()
             s_mode    = self.getmode[im_type]
             t_mode   = self.bpp2mode[bpp]
-            if s_mode == t_mode:
+            if s_mode == t_mode and (not self.maxsize or max(width,height) < self.maxsize):
                 BytesIO.write(struct.pack('<HIII', two,checksum,size,name_len))
                 BytesIO.write(name)
                 BytesIO.write(struct.pack('<III', im_type,width,height))
@@ -895,7 +907,10 @@ class mmp_convert(object):
                 start_seek = mmp_file.tell()
                 two,checksum,size,name_len = struct.unpack('<HIII', mmp_file.read(14))
                 if two!=2:
-                    str_ = 'Error: "{}" Invalid file.\n'.format(mmp_name)
+                    str_ = '\rError: "{}" Invalid file.\n'.format(mmp_name)
+                    if TIMER:
+                        TIMER.interval = 0
+                        sleep(0.2)
                     print (str_)
                     return
                 im_name = str_codec(mmp_file.read(name_len))
@@ -1102,11 +1117,12 @@ class mmp_convert(object):
             print ('')
 
         elif FLAG == 'Process':
-            bpp = self.bpp
+            bpp     = self.bpp
             maxsize = self.maxsize
+            scale   = self.scale
             task,q,fix_count = params
-            root, im_name = task[0], task[1]
-            name, ext     = os.path.splitext(im_name)
+            root, im_name    = task[0], task[1]
+            name, ext        = os.path.splitext(im_name)
             
             file = os.path.join(root, im_name)
             img = Image.open(file)
@@ -1139,14 +1155,18 @@ class mmp_convert(object):
                                 alpha= alpha.transpose(Image.FLIP_TOP_BOTTOM)
                             img.putalpha(alpha)
 
-            is_size   = True #not maxsize
+            is_size   = not scale
             is_bpp    = True #not T_isAlpha or (not bpp)
             #
             is_format = (S_FORMAT == T_FORMAT)
             #
-            if maxsize:
+            if maxsize and not scale:
                 resize_success, img = IMG_resize(img, maxsize)
                 is_size = not resize_success
+            elif scale:
+                scale  = float(scale[:-1])
+                resize = [int(i*scale) for i in im_size]
+                img = img.resize(resize, Image.ANTIALIAS)
             #
             if bpp:
                 is_bppCheck = 1
@@ -1183,34 +1203,195 @@ class mmp_convert(object):
                 img.save(im_path, quality=95)
             q.put(1)
 
-    def toImg(self, path=[], output=None, bpp=None, maxsize=None, overwrite=False, cmd=False):
+    def toImg(self, path=[], output=None, bpp=None, maxsize=None, scale=None, overwrite=False, cmd=False):
         if cmd:
             paths = parse_args.path
-            self.output = parse_args.output
-            self.bpp = parse_args.bpp
+            self.output  = parse_args.output
+            self.bpp     = parse_args.bpp
             self.maxsize = parse_args.maxsize
+            self.scale   = parse_args.scale
             self.overwrite = parse_args.yes
         else:
-            self.output = output
-            self.bpp = bpp
+            self.output  = output
+            self.bpp     = bpp
             self.maxsize = maxsize
+            self.scale   = scale
             self.overwrite = overwrite
 
         self.output = '.{}'.format(self.output.lower())
         if self.output not in self.valid_format:
             print ('Error: Invalid format "{}"'.format(self.output))
             return
+        if self.scale and self.scale[-1].lower() != 'x':
+            print ('Error parameter: {}.'.format(self.scale))
+            return
 
         sec = timeit(lambda:self.process_toImg((paths, cmd)), number=1)
         print ('Time used: {:.2f} sec\n'.format(sec))
 
 
+    #######################
+    # Files Unification
+    #######################
+    def StdUnify(self, path=[], format_=[], keeplevel=False, cmd=False):
+        global TIMER
+        if cmd:
+            path = parse_args.path[0]
+            format_ = parse_args.format
+            keeplevel = parse_args.keeplevel
+        if keeplevel and not format_:
+            print ("Please specify the format!\n")
+            return
+
+        os.chdir(path)
+
+        FileMapping = './!FileMapping.json'
+        if os.path.exists(FileMapping):
+            print ('Processing...\n')
+            with open(FileMapping, 'r', encoding='utf-8') as f:
+                Unifydirs = json.load(f)
+            count = Unifydirs.pop('count')
+
+            q = Queue()
+            if cmd:
+                TIMER = threading.Timer(0.1, progress_bar, (count, q))
+                TIMER.start()
+
+            files = []
+            for key in Unifydirs:
+                sub = Unifydirs[key]
+                root = sub.pop('root')
+                if root == './':
+                    files = sub
+                    continue
+                if not os.path.exists(root):
+                    os.makedirs(root)
+                for id_name in sub:
+                    shutil.move(
+                    os.path.join('.', id_name),
+                    os.path.join(root, sub[id_name])
+                    )
+                    q.put(1)
+            if files:
+                tmp = GenerateName('.')
+                os.makedirs(tmp)
+                for id_name in files:
+                    shutil.move(
+                    os.path.join('.', id_name),
+                    os.path.join(tmp, files[id_name])
+                    )
+                for file in os.listdir(tmp):
+                    shutil.move(
+                    os.path.join(tmp, file),
+                    os.path.join('.', file)
+                    )
+                    q.put(1)
+                os.rmdir(tmp)
+            os.remove(FileMapping)
+
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
+            print ('{} files <remapping> done.\n'.format(count))
+            return
+
+        #------------------------------------------
+        print ('Processing...\n')
+        format_ = ['.{}'.format(i.lower()) for i in format_]
+        count = 0
+        nDirs = nFiles = 1
+        Unifydirs = {}
+        
+        basename = os.path.basename(path)
+        out_dir = '../{}_StdUnify/'.format(basename)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        if format_:
+            for root, dirs, files in os.walk('./'):
+                files = [i for i in files if os.path.splitext(i)[1].lower() in format_]
+                if files:
+                    Unifydirs[nDirs] = {'root':root, 'files':files}
+                    if keeplevel:
+                        new_root = root.replace('./', out_dir, 1)
+                        if not os.path.exists(new_root):
+                            os.makedirs(new_root)
+                        Unifydirs[nDirs]['t_root'] = new_root
+                    count += len(files)
+                    nDirs += 1
+        else:
+            for root, dirs, files in os.walk('./'):
+                if files:
+                    Unifydirs[nDirs] = {'root':root, 'files':files}
+                    count += len(files)
+                    nDirs += 1
+        q = Queue()
+        if cmd:
+            TIMER = threading.Timer(0.1, progress_bar, (count, q))
+            TIMER.start()
+
+        # root_files = []
+        if keeplevel:
+            for n in list(Unifydirs.keys()):
+                sub = Unifydirs[n]
+                root, files = sub['root'], sub.pop('files')
+                new_root = sub.pop('t_root')
+                for file in files:
+                    shutil.move(
+                        os.path.join(root, file),
+                        os.path.join(new_root, file)
+                        )
+                    q.put(1)
+            os.chdir('../')
+            for root, dirs, files in os.walk(basename, topdown=False):
+                if not os.listdir(root):
+                    os.rmdir(root)
+
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
+            print ('{} files <Format Unification> done.\n'.format(count))
+        else:
+            for n in list(Unifydirs.keys()):
+                sub = Unifydirs[n]
+                root, files = sub['root'], sub.pop('files')
+                for file in files:
+                    ext = os.path.splitext(file)[1]
+                    id_name = '{}{}'.format(nFiles,ext)
+                    sub[id_name] = file
+                    shutil.move(
+                        os.path.join(root, file),
+                        os.path.join(out_dir, id_name)
+                        )
+                    nFiles += 1
+                    q.put(1)
+                # if root != './' and not os.listdir(root):
+                #     os.
+            Unifydirs['count'] = count
+            FileMapping = os.path.join(out_dir, '!FileMapping.json')
+            with open(FileMapping, 'w', encoding='utf-8') as f:
+                json.dump(Unifydirs, f, indent=4, separators=(',',': '), ensure_ascii=False)
+            os.chdir('../')
+            for root, dirs, files in os.walk(basename, topdown=False):
+                if not os.listdir(root):
+                    os.rmdir(root)
+
+            if TIMER:
+                TIMER.interval = 0
+                sleep(0.2)
+                cmd_font.SetColor()
+            print ('{} files <Name Unification> done.\n'.format(count))
+
+
+
+
 ############################################################
 ############################################################
 class CmdFont(object):
-    STD_INPUT_HANDLE = -10
+    STD_INPUT_HANDLE  = -10
     STD_OUTPUT_HANDLE = -11
-    STD_ERROR_HANDLE = -12
+    STD_ERROR_HANDLE  = -12
      
     #colors
     # 0 = 黑色       8 = 灰色
@@ -1263,7 +1444,10 @@ if __name__ == "__main__":
     parser.add_argument('--bpp', '-b', type=str, default=None, metavar='bpp', choices=['8','24','32','Alpha'])
     parser.add_argument('--path','-p', type=str, default=[],   metavar='file paths', nargs='*')
     parser.add_argument('--maxsize','-max', type=int, default=None,   metavar='maxsize')
-    parser.add_argument('--output', type=str, default=None,   metavar='output')
+    parser.add_argument('--output','-o',    type=str, default=None,   metavar='output')
+    parser.add_argument('--format',      type=str, default=[],   metavar='format', nargs='*')
+    parser.add_argument('--scale','-s',  type=str, default=None,   metavar='scale')
+    parser.add_argument('--keeplevel', '-kl', action='store_true')
     parser.add_argument('--yes', '-y', action='store_true')
     parse_args = parser.parse_args()
 
@@ -1281,7 +1465,7 @@ mmp.packing(paths[, bpp=None, overwrite=False])
     :param overwrite:   True/False
 
 mmp.tobpp(paths[, bpp='8', maxsize=None, overwrite=False])
-    :param paths:   [mmp/img files/folders]
+    :param paths:   [mmp files/folders]
     :param bpp:     8/24/32/Alpha
     :param maxsize:     Resolution(largest side)
     :param overwrite:   True/False
@@ -1291,9 +1475,8 @@ mmp.todat(paths)
 
 mmp.remove(path, names)
     :param path:    mmp file
-    :names:         [image names]
+    :names:         [texture names]
 
-skip = 4 - ((m_iImageWidth * m_iBitsPerPixel)>>3) & 3
 
 skip = 4 - (biWidth*biBitCount)>>3 & 3
 skip = (skip!=4 and skip) or 0

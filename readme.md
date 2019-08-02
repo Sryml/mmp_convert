@@ -106,21 +106,51 @@ MMP To Dat:
 MMP Remove:  
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
 
+<br>
+
 #### toImg
 - Image format convert  
 - 2 required parameter  
   `--path`: File or folder paths.  
   `--output`: Output format.
-- 3 optional parameter  
+- 4 optional parameter  
   `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
   `-max`: resolution(Allow the largest edge, ignoring the image below the maximum).  
+  `--scale`: Zoom factor, such as `4x` or `0.25x`.  
   `-y`: overwrite, no -y does not overwrite.  
   
 BMP To PNG:  
 ![mmp-toImg](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-toImg.gif)
 
+<br>
+
+#### StdUnify
+- Files Unification  
+  Uniform name/Uniform format/File remapping  
+- 1 required parameter  
+  `--path`: File or folder paths.  
+- 2 optional parameter  
+  `--format`: File format  
+  `-kl`: Extract the file in the specified format and maintain the directory hierarchy; otherwise give the file a unique ID and move to the same directory  
+
+Uniform name:  
+![ReStdUnify](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-StdUnify.gif)
+
+File remapping:  
+![ReStdUnify](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-ReStdUnify.gif)
+
+Uniform format:  
+None
+
   
 ## Update log
+### v1.1
+`[+]`Added function `StdUnify` - Files Unification(Uniform name or uniform format).  
+`[+]`Increase the `toImg` function's parameter `--scale`, scale the image proportionally.  
+`[^]`Fix `tobpp` MMP files of the same bpp cannot convert resolution.  
+
+<br>
+
 ### v1.0
 `[+]`Added function `remove` - Delete images in mmp file.  
 `[+]`Added function `toImg` - Image format convert.  

@@ -105,21 +105,51 @@ MMP To Dat:
 MMP Remove:  
 ![mmp-remove](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-remove.gif)
 
+<br>
+
 #### toImg
 - 图像格式转换  
 - 2个必须参数  
   `--path`: 文件或文件夹路径  
   `--output`: 输出格式
-- 3个可选参数  
+- 4个可选参数  
   `--bpp`: 8/24/32/Alpha，默认为原图片位数。  
   `-max`: 分辨率（允许最大的边，忽略最大值以下的图像）  
+  `--scale`: 缩放倍数，例如`4x`或`0.25x`。  
   `-y`: 覆盖，没有-y则不覆盖  
   
 BMP To PNG:  
 ![mmp-toImg](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-toImg.gif)
-  
+
+<br>
+
+#### StdUnify
+- 文件统一化  
+  统一名字/统一格式/文件重映射  
+- 1个必须参数  
+  `--path`: 文件或文件夹路径  
+- 2个可选参数  
+  `--format`: 文件格式  
+  `-kl`: 提取指定格式的文件并保持目录层次; 否则给文件唯一ID并移动到同一个目录  
+
+统一名字:  
+![ReStdUnify](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-StdUnify.gif)
+
+文件重映射:  
+![ReStdUnify](https://raw.githubusercontent.com/Sryml/Image/master/GIF/mmp-ReStdUnify.gif)
+
+统一格式:  
+None
+
   
 ## 更新日志
+### v1.1
+`[+]`新增功能`StdUnify` - 文件统一化（统一名字或统一格式）。  
+`[+]`增加`toImg`功能的参数`--scale` - 按比例缩放图像。  
+`[^]`修复`tobpp`相同bpp的MMP文件无法转换分辨率。  
+
+<br>
+
 ### v1.0
 `[+]`新增功能`remove` - 删除MMP文件中的图像。  
 `[+]`新增功能`toImg` - 图像格式转换。  
