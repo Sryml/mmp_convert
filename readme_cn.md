@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)&emsp;&emsp;[README EN](https://github.com/Sryml/mmp_convert/tree/v1.0#readme)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[README EN](https://github.com/Sryml/mmp_convert/tree/v1.1#readme)
 
 <div align="center">
   <img alt="GitHub release" src="https://img.shields.io/github/release/sryml/mmp_convert.svg?style=plastic">
