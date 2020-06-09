@@ -1188,8 +1188,9 @@ class mmp_convert(object):
             #-----------------------------------------
             
             if self.overwrite:
+                # 包括不同格式文件的覆盖
                 BytesIO = io.BytesIO()
-                img.save(BytesIO, T_FORMAT[1:], quality=95)
+                img.save(BytesIO, T_FORMAT[1:], quality=self.quality,subsampling=0)
                 img.close()
                 os.remove(file)
                 im_path = os.path.join(root, '{}{}'.format(name, self.output))
@@ -1200,22 +1201,24 @@ class mmp_convert(object):
                     im_path = os.path.join(task[2], '{}{}'.format(name, self.output))
                 else:
                     im_path = os.path.join(root, '{}_toImg{}'.format(name, self.output))
-                img.save(im_path, quality=95)
+                img.save(im_path, quality=self.quality,subsampling=0) #optimize=True,progressive=True,subsampling=0
             q.put(1)
 
-    def toImg(self, path=[], output=None, bpp=None, maxsize=None, scale=None, overwrite=False, cmd=False):
+    def toImg(self, path=[], output=None, bpp=None, maxsize=None, scale=None, overwrite=False, quality=95, cmd=False):
         if cmd:
             paths = parse_args.path
             self.output  = parse_args.output
             self.bpp     = parse_args.bpp
             self.maxsize = parse_args.maxsize
             self.scale   = parse_args.scale
+            self.quality = parse_args.quality or quality
             self.overwrite = parse_args.yes
         else:
             self.output  = output
             self.bpp     = bpp
             self.maxsize = maxsize
             self.scale   = scale
+            self.quality = parse_args.quality
             self.overwrite = overwrite
 
         self.output = '.{}'.format(self.output.lower())
@@ -1385,6 +1388,48 @@ class mmp_convert(object):
 
 
 
+    #######################
+    # RGB<=>BGR Swap.
+    #######################
+    def swapBGR(self, paths=[], quality=95, cmd=False):
+        global TIMER
+        if cmd:
+            paths = parse_args.path
+            quality = parse_args.quality or quality
+
+        str_ = '\rFiles pre-parsing...'
+        print (str_, end='')
+        if cmd:
+            TIMER = threading.Timer(0.01, progress_bar2, (str_,))
+            TIMER.start()
+
+        mmp_paths = []
+        for p in paths:
+            if os.path.isdir(p):
+                for root, dirs, files in os.walk(p):
+                    files = [os.path.join(root,i) for i in files if os.path.splitext(i)[1].lower() in self.valid_format]
+                    mmp_paths.extend(files)
+            elif os.path.splitext(p)[1].lower() in self.valid_format:
+                mmp_paths.append(p)
+        if TIMER:
+            TIMER.interval = 0
+            sleep(0.2)
+        print ('\n')
+        
+        print ('Image converting...\n')
+
+        error_msg = []
+        for file in mmp_paths:
+            img = Image.open(file)
+            channels = list(img.split())
+            channels[0],channels[2] = channels[2],channels[0]
+            img = Image.merge(img.mode,channels)
+            img.save(file, quality=quality,subsampling=0)
+            img.close()
+
+        print ('{} Image files convert completed.\n'.format(len(mmp_paths)))
+
+
 
 ############################################################
 ############################################################
@@ -1447,6 +1492,7 @@ if __name__ == "__main__":
     parser.add_argument('--output','-o',    type=str, default=None,   metavar='output')
     parser.add_argument('--format',      type=str, default=[],   metavar='format', nargs='*')
     parser.add_argument('--scale','-s',  type=str, default=None,   metavar='scale')
+    parser.add_argument('--quality','-q', type=int, default=None,   metavar='quality')
     parser.add_argument('--keeplevel', '-kl', action='store_true')
     parser.add_argument('--yes', '-y', action='store_true')
     parse_args = parser.parse_args()

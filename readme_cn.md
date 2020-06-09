@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)&emsp;&emsp;[README EN](https://github.com/Sryml/mmp_convert/tree/v1.1#readme)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[README EN](https://github.com/Sryml/mmp_convert/tree/v1.12#readme)
 
 <div align="center">
   <img alt="GitHub release" src="https://img.shields.io/github/release/sryml/mmp_convert.svg?style=plastic">
@@ -23,14 +23,14 @@ July 2019 by Sryml
   命令行启动，只能解包不能打包，无法解包32bpp图片。
   
 - SGIMMPWorkstation  
-  SGI做的程序，所有功能都很完美。打包/解包/删除/添加/创建dat，支持8/24/32bpp，是一个很方便的软件。  
-  它唯一不足的是自动化批量处理和多线程。
+  SGI做的程序，所有功能都很完美。打包/解包/删除/添加/创建dat...支持8/24/32bpp，是一个很方便的软件。  
+  它唯一不足的是批量处理。
   
 <br>
   
-你可能已经猜到了`mmp_convert`的功能:sunglasses:
+我希望可以通过更方便的方式处理某些事情，所以`mmp_convert`诞生了:sunglasses:
 - mmp_convert.py  
-  打包/解包/删除/添加/创建dat/转换bpp/转换格式，支持8/24/32bpp，批量自动化和多进程。  
+  打包/解包/删除/添加/创建dat/转换bpp/转换格式...支持8/24/32bpp，批量自动化和多进程。  
   最重要的一件事：python环境
 
 
@@ -112,10 +112,11 @@ MMP Remove:
 - 2个必须参数  
   `--path`: 文件或文件夹路径  
   `--output`: 输出格式
-- 4个可选参数  
+- 5个可选参数  
   `--bpp`: 8/24/32/Alpha，默认为原图片位数。  
   `-max`: 分辨率（允许最大的边，忽略最大值以下的图像）  
   `--scale`: 缩放倍数，例如`4x`或`0.25x`。  
+  `--quality`: JPG图像质量，默认为95。  
   `-y`: 覆盖，没有-y则不覆盖  
   
 BMP To PNG:  
@@ -141,8 +142,23 @@ BMP To PNG:
 统一格式:  
 None
 
+<br>
+
+#### swapBGR
+- 图像通道转换（RGB与BGR）  
+- 1个必须参数  
+  `--path`: 文件或文件夹路径  
+- 1个可选参数  
+  `--quality`: JPG图像质量，默认为95。  
+
   
 ## 更新日志
+### v1.12
+`[+]`新增功能`swapBGR` - 图像通道转换。  
+`[^]``toImg`增加图像质量可选参数`quality`（适用于JPG格式）。  
+
+<br>
+
 ### v1.1
 `[+]`新增功能`StdUnify` - 文件统一化（统一名字或统一格式）。  
 `[+]`增加`toImg`功能的参数`--scale` - 按比例缩放图像。  

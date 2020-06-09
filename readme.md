@@ -1,4 +1,4 @@
-# BoD - mmp files convert(Python program)&emsp;&emsp;[中文文档](https://github.com/Sryml/mmp_convert/blob/v1.1/readme_cn.md#readme)
+# BoD - mmp files convert(Python program)&emsp;&emsp;[中文文档](https://github.com/Sryml/mmp_convert/blob/v1.12/readme_cn.md#readme)
 
 <div align="center">
   <img alt="GitHub release" src="https://img.shields.io/github/release/sryml/mmp_convert.svg?style=plastic">
@@ -24,14 +24,14 @@ There are 3 mmp programs on the current network:
   
 - SGIMMPWorkstation  
   By SGI. All features are perfect.  
-  packing/unpacking/deleting/adding/generating dat, support 8/24/32bpp, is a very convenient software.  
-  The only downside is its automated batch processing and multithreading.
+  packing/unpacking/deleting/adding/generating dat... support 8/24/32bpp, is a very convenient software.  
+  The only drawback is batch processing.
   
 <br>
   
-You may have guessed the function of `mmp_convert`:sunglasses:
+I hope there is something that can be handled in a more convenient way, so `mmp_convert` was born.:sunglasses:
 - mmp_convert.py  
-  packing/unpacking/deleting/adding/generating dat/convert bpp/convert format, support 8/24/32bpp, batch automation and multi-process.  
+  packing/unpacking/deleting/adding/generating dat/convert bpp/convert format... support 8/24/32bpp, batch automation and multi-process.  
   The most important thing: the python environment
 
 
@@ -113,10 +113,11 @@ MMP Remove:
 - 2 required parameter  
   `--path`: File or folder paths.  
   `--output`: Output format.
-- 4 optional parameter  
+- 5 optional parameter  
   `--bpp`: 8/24/32/Alpha, default bpp from the original image.  
   `-max`: resolution(Allow the largest edge, ignoring the image below the maximum).  
   `--scale`: Zoom factor, such as `4x` or `0.25x`.  
+  `--quality`: JPG image quality, default is 95.  
   `-y`: overwrite, no -y does not overwrite.  
   
 BMP To PNG:  
@@ -142,8 +143,23 @@ File remapping:
 Uniform format:  
 None
 
+<br>
+
+#### swapBGR
+- Image channel conversion (RGB and BGR)  
+- 1 required parameter  
+  `--path`: File or folder paths.  
+- 1 optional parameter  
+  `--quality`: JPG image quality, default is 95.  
+
   
 ## Update log
+### v1.12
+`[+]`Added function`swapBGR` - Image channel conversion.  
+`[^]``toImg` increases the image quality optional parameter` quality` (applies to JPG format).  
+
+<br>
+
 ### v1.1
 `[+]`Added function `StdUnify` - Files Unification(Uniform name or uniform format).  
 `[+]`Increase the `toImg` function's parameter `--scale`, scale the image proportionally.  
