@@ -156,7 +156,7 @@ None
 ## Update log
 ### v1.12
 `[+]`Added function`swapBGR` - Image channel conversion.  
-`[^]``toImg` increases the image quality optional parameter` quality` (applies to JPG format).  
+`[^]` `toImg` increases the image quality optional parameter` quality` (applies to JPG format).  
 
 <br>
 
