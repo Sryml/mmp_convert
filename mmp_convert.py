@@ -1257,39 +1257,41 @@ class mmp_convert(object):
 
             q = Queue()
             if cmd:
-                TIMER = threading.Timer(0.1, progress_bar, (count, q))
+                TIMER = threading.Timer(0.1, progress_bar, (len(Unifydirs), q))
                 TIMER.start()
 
-            files = []
+            # files = []
             for key in Unifydirs:
                 sub = Unifydirs[key]
                 root = sub.pop('root')
                 if root == './':
-                    files = sub
-                    continue
-                if not os.path.exists(root):
-                    os.makedirs(root)
-                for id_name in sub:
-                    shutil.move(
-                    os.path.join('.', id_name),
-                    os.path.join(root, sub[id_name])
-                    )
-                    q.put(1)
-            if files:
-                tmp = GenerateName('.')
-                os.makedirs(tmp)
-                for id_name in files:
-                    shutil.move(
-                    os.path.join('.', id_name),
-                    os.path.join(tmp, files[id_name])
-                    )
-                for file in os.listdir(tmp):
-                    shutil.move(
-                    os.path.join(tmp, file),
-                    os.path.join('.', file)
-                    )
-                    q.put(1)
-                os.rmdir(tmp)
+                    # files = sub
+                    for id_name in sub:
+                        os.rename(os.path.join('.', id_name), os.path.join('.', sub[id_name]))
+                else:
+                    if not os.path.exists(root):
+                        os.makedirs(root)
+                    for id_name in sub:
+                        shutil.move(
+                        os.path.join('.', id_name),
+                        os.path.join(root, sub[id_name])
+                        )
+                q.put(1)
+            # if files:
+            #     tmp = GenerateName('.')
+            #     os.makedirs(tmp)
+            #     for id_name in files:
+            #         shutil.move(
+            #         os.path.join('.', id_name),
+            #         os.path.join(tmp, files[id_name])
+            #         )
+            #     for file in os.listdir(tmp):
+            #         shutil.move(
+            #         os.path.join(tmp, file),
+            #         os.path.join('.', file)
+            #         )
+            #         q.put(1)
+            #     os.rmdir(tmp)
             os.remove(FileMapping)
 
             if TIMER:
@@ -1360,8 +1362,8 @@ class mmp_convert(object):
                 sub = Unifydirs[n]
                 root, files = sub['root'], sub.pop('files')
                 for file in files:
-                    ext = os.path.splitext(file)[1]
-                    id_name = '{}{}'.format(nFiles,ext)
+                    # ext = os.path.splitext(file)[1]
+                    id_name = f'{nFiles} - {file}'
                     sub[id_name] = file
                     shutil.move(
                         os.path.join(root, file),
